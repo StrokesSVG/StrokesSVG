@@ -75,22 +75,31 @@ db.each("SELECT code_point FROM strokes GROUP BY code_point", function(err, row)
 				out.push(strokesSVG.join(""));
 				out.push("</svg>");
 
-				fs.open("svg/" + c + ".svg", "w", function(err, fd){
-					if(err){
-						console.log(err);
-						return;
-					}
-					fs.write(fd, out.join(""));
-
-					console.log("Written " + code_point);
-					fs.close(fd);
-				});
+				writeFile("svg/" + c + ".svg", out.join(""), code_point);
 			});
 		});
 	});
 
 	db.close();
 });
+
+function writeFile(fileName, data, i){
+	fs.open(fileName, "w", function(err, fd){
+		if(err){
+			setTimeout(function(){writeFile(fileName, data, i)}, 50);
+			return;
+		}
+		fs.write(fd, data, function(err, written, buffer){
+			if(err){
+				setTimeout(function(){writeFile(fileName, data, i)}, 50);
+				return;
+			}
+			console.log("Written " + i);
+			fs.close(fd);
+		});
+
+	});
+}
 
 function getBounds(path){
 	var minX = 1E4,
