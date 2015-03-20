@@ -3,11 +3,20 @@ var fs = require('fs'),
 
 	db = new sqlite3.Database('strokes.db'),
 
-	width = 270,
-	height = 270,
-	color = ["#000080","#0000ff","#CCCCCC"],
+	// Fixed by the data in the database
+	WIDTH = 270,
+	HEIGHT = 270,
+
+	ouputDir = "svg",
+	colorPlan = "#CCCCCC",
+	colorRadical = ["#000080","#0000ff"],
+	colorGrad = ["#000000", "#ff0000"],
 	// cross the page in 1 sec
-	speed = width,
+	speed = WIDTH,
+	mode = 'radical', // radical, grad, black,
+	showPlan = true,
+	animate = true,
+	pauseOnCompletedTime = "1s"
 
 	ids = [];
 
@@ -18,15 +27,19 @@ db.each("SELECT code_point FROM strokes GROUP BY code_point", function(err, row)
 	db.serialize(function(){
 		ids.forEach(function(code_point){
 			var c = String.fromCharCode(code_point),
-				out = ['<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="'+width+'" height="'+height+'">'],
+				out = ['<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="'+WIDTH+'" height="'+HEIGHT+'">'],
 				defs = ['<defs>'],
 				plan = [],
 				strokes = [],
-				strokesSVG = [];
+				strokesSVG = [],
+				mainStrokes = 0;
 			db.each("SELECT ordinal,direction,is_radical,is_continuation,path FROM strokes WHERE code_point = " + code_point + " ORDER BY ordinal", function(err, stroke) {
 				if(err){
 					console.log(err);
 					return true;
+				}
+				if(!stroke.is_continuation){
+					mainStrokes++;
 				}
 				strokes.push(stroke);
 			}, function(err, numRows){
@@ -36,9 +49,16 @@ db.each("SELECT code_point FROM strokes GROUP BY code_point", function(err, row)
 					return;
 				}
 
-				var numStrokes = strokes.length;
+				var numStrokes = strokes.length,
+						strokeNum = 0;
 
 				strokes.forEach(function(stroke){
+					if(!stroke.is_continuation){
+						strokeNum++;
+					}
+					stroke.totalStrokes = mainStrokes;
+					stroke.strokeNum = strokeNum;
+
 					var i = stroke.ordinal,
 						bounds = getBounds(stroke.path),
 						x = bounds[0],
@@ -50,32 +70,43 @@ db.each("SELECT code_point FROM strokes GROUP BY code_point", function(err, row)
 						end = values[1],
 						attr = values[2],
 						dist = values[3],
-						begin = i == 1 ? "0; animate"+numStrokes+".end + 1" : "animate" + (i - 1) + ".end",
+						begin = i == 1 ? "0; animate"+numStrokes+".end + " + pauseOnCompletedTime :
+							"animate" + (i - 1) + ".end",
 						dur = (dist / speed).toFixed(3);
 
 					if(i != 1 && !stroke.is_continuation){
 						begin += " + 0.5";
 					}
 
-					plan.push('<path d="' + stroke.path + '" fill="'+color[2]+'"/>');
-					strokesSVG.push('<path d="' + stroke.path + '" fill="'+ color[stroke.is_radical] +'" clip-path="url(#clip-mask-' + i + ')" />');
-					defs.push(
-						'<clipPath id="clip-mask-'+i+'">'
-						+ 	'<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'">'
-						+		((i == 1) ? '' : '<set attributeName="'+attr+'" to="'+start+'" begin="0; animate'+numStrokes+'.end + 1" />')
-						+ 		'<animate attributeName="'+attr+'" from="'+start+'" to="'+end+'" dur="'+dur+'" begin="'+begin+'" id="animate'+i+'" fill="freeze"/>'
-						+	'</rect>'
-						+'</clipPath>');
+					if(showPlan){
+						plan.push('<path d="' + stroke.path + '" fill="'+colorPlan+'"/>');
+					}
+
+					strokesSVG.push('<path d="' + stroke.path + '" fill="'+ getColor(stroke) +'"'+ (animate ? ' clip-path="url(#clip-mask-' + i + ')"' : '') + ' />');
+
+					if(animate){
+						defs.push(
+							'<clipPath id="clip-mask-'+i+'">'
+							+ 	'<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'">'
+							+		((i == 1) ? '' : '<set attributeName="'+attr+'" to="'+start+'" begin="0; animate'+numStrokes+'.end + '+pauseOnCompletedTime+'" />')
+							+ 		'<animate attributeName="'+attr+'" from="'+start+'" to="'+end+'" dur="'+dur+'" begin="'+begin+'" id="animate'+i+'" fill="freeze"/>'
+							+	'</rect>'
+							+'</clipPath>');
+						}
 				});
 
-				defs.push('</defs>');
-				out.push(defs.join(""));
-				out.push(drawPlan(width,height));
-				out.push(plan.join(""));
+				if(animate){
+					defs.push('</defs>');
+					out.push(defs.join(""));
+				}
+				if(showPlan){
+					out.push(drawPlan(WIDTH,HEIGHT));
+					out.push(plan.join(""));
+				}
 				out.push(strokesSVG.join(""));
 				out.push("</svg>");
 
-				writeFile("svg/" + c + ".svg", out.join(""), code_point);
+				writeFile(ouputDir + "/" + c + ".svg", out.join(""), code_point);
 			});
 		});
 	});
@@ -148,6 +179,37 @@ function getStartEndValues(direction, bounds){
 
 	return out;
 }
+
+function getColor(stroke){
+	if(mode == 'black'){
+		return "#000000";
+	}
+
+	if(mode == 'radical'){
+		return colorRadical[stroke.is_radical];
+	}
+
+	if(mode == 'grad'){
+		var s_i = (stroke.totalStrokes == 1) ? 1 : (stroke.strokeNum - 1),
+				s_1 = (stroke.totalStrokes - 1) || 1,
+				r_0 = parseInt(colorGrad[0].substr(1,2),16),
+				g_0 = parseInt(colorGrad[0].substr(3,2),16),
+				b_0 = parseInt(colorGrad[0].substr(5,2),16),
+				r_1 = parseInt(colorGrad[1].substr(1,2),16),
+				g_1 = parseInt(colorGrad[1].substr(3,2),16),
+				b_1 = parseInt(colorGrad[1].substr(5,2),16),
+				r_i = r_0 + (r_1 - r_0) * (s_i / s_1),
+				g_i = g_0 + (g_1 - g_0) * (s_i / s_1),
+				b_i = b_0 + (b_1 - b_0) * (s_i / s_1),
+				out = "#" + pad((r_i |0).toString(16))
+									+ pad((g_i |0).toString(16))
+									+ pad((b_i |0).toString(16));
+		return out;
+	}
+
+	return "#000000";
+}
+
 function drawPlan(w, h){
 	return '<path d="' +
 			"M 0 0 " +
@@ -158,5 +220,12 @@ function drawPlan(w, h){
 			"L " + (w/2) + " " + h + " " +
 			"M 0 " + (h/2) + " " +
 			"L " + w + " " +(h/2) +
-		'" stroke="' + color[2] + '" />';
+		'" stroke="' + colorPlan + '" />';
+}
+
+function pad(s){
+	if(s.length  == 1){
+		return "0" + s;
+	}
+	return s;
 }
