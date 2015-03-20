@@ -7,15 +7,15 @@ var fs = require('fs'),
 	WIDTH = 270,
 	HEIGHT = 270,
 
-	ouputDir = "svg",
+	ouputDir = "grad",
 	colorPlan = "#CCCCCC",
 	colorRadical = ["#000080","#0000ff"],
 	colorGrad = ["#000000", "#ff0000"],
 	// cross the page in 1 sec
 	speed = WIDTH,
-	mode = 'radical', // radical, grad, black,
+	mode = 'grad', // radical, grad, black,
 	showPlan = true,
-	animate = true,
+	animate = false,
 	pauseOnCompletedTime = "1s"
 
 	ids = [];
