@@ -3,7 +3,8 @@ var sqlite3 = require('sqlite3').verbose();
 var db = new sqlite3.Database('strokes.db');
 
 var ids = [],
-    outputDir = "grad";
+    outputDir = "svg",
+    indices = [];
 
 db.each("SELECT code_point FROM strokes GROUP BY code_point", function(err, row) {
 	ids.push(row.code_point);
@@ -16,7 +17,8 @@ db.each("SELECT code_point FROM strokes GROUP BY code_point", function(err, row)
 
 	var i = 0;
 	while(imgs.length){
-		var slice = imgs.splice(0, 50);
+		var slice = imgs.splice(0, 50),
+        idSlice = ids.splice(0, 50);
 
 		(function(i,slice){
 			fs.open(outputDir + "/index"+i+".html", "w", function(err, fd){
@@ -32,8 +34,22 @@ db.each("SELECT code_point FROM strokes GROUP BY code_point", function(err, row)
 			});
 		}(i, slice));
 
+    indices.push('<li><a href="index'+i+'.html">Index ' + i + ': Code Points ' + idSlice[0] + '-' + idSlice[slice.length-1] + '</a>');
+
 		i++;
 	}
+
+  fs.open(outputDir + "/index.html", "w", function(err, fd){
+    if(err){
+      console.log(err);
+      return;
+    }
+    fs.write(fd, "<ul>"+indices.join("")+"</ul>", function(err, written, buffer){
+      console.log("Written Index");
+      fs.close(fd);
+    });
+
+  });
 
 	db.close();
 });

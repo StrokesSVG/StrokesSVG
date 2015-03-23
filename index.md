@@ -1,3 +1,5 @@
+---
+---
 # StrokesSVG
 
 Animated stroke order vector images for the most common chinese characters.
