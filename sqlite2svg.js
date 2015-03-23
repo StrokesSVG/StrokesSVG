@@ -7,7 +7,7 @@ var fs = require('fs'),
 	WIDTH = 270,
 	HEIGHT = 270,
 
-	ouputDir = "grad",
+	ouputDir = "compress",
 	colorPlan = "#CCCCCC",
 	colorRadical = ["#000080","#0000ff"],
 	colorGrad = ["#000000", "#ff0000"],
@@ -16,7 +16,8 @@ var fs = require('fs'),
 	mode = 'grad', // radical, grad, black,
 	showPlan = true,
 	animate = false,
-	pauseOnCompletedTime = "1s"
+	pauseOnCompletedTime = "1s",
+	compressPaths = true,
 
 	ids = [];
 
@@ -72,17 +73,18 @@ db.each("SELECT code_point FROM strokes GROUP BY code_point", function(err, row)
 						dist = values[3],
 						begin = i == 1 ? "0; animate"+numStrokes+".end + " + pauseOnCompletedTime :
 							"animate" + (i - 1) + ".end",
-						dur = (dist / speed).toFixed(3);
+						dur = (dist / speed).toFixed(3),
+						path = compressPaths ? compressPath(stroke.path) : stroke.path;
 
 					if(i != 1 && !stroke.is_continuation){
 						begin += " + 0.5";
 					}
 
 					if(showPlan){
-						plan.push('<path d="' + stroke.path + '" fill="'+colorPlan+'"/>');
+						plan.push('<path d="' + path + '" fill="'+colorPlan+'"/>');
 					}
 
-					strokesSVG.push('<path d="' + stroke.path + '" fill="'+ getColor(stroke) +'"'+ (animate ? ' clip-path="url(#clip-mask-' + i + ')"' : '') + ' />');
+					strokesSVG.push('<path d="' + path + '" fill="'+ getColor(stroke) +'"'+ (animate ? ' clip-path="url(#clip-mask-' + i + ')"' : '') + ' />');
 
 					if(animate){
 						defs.push(
@@ -148,6 +150,50 @@ function getBounds(path){
 	}
 
 	return [minX, minY, maxX, maxY];
+}
+
+function compressPath(path){
+	var re = /\w[\W\d]+/g,
+			match,
+			lastX,
+			lastY,
+			points,
+			x,
+			y,
+			out = [];
+	while(match = re.exec(path)){
+		points = match[0].split(" ");
+		switch(points[0]) {
+			case 'M':
+				// Assume only one M and not relative
+				out.push("M");
+				x = points[1];
+				y = points[2];
+				out.push(x);
+				out.push(y);
+				break;
+			case 'L':
+				out.push("l");
+				x = points[1];
+				y = points[2];
+				out.push(x - lastX);
+				out.push(y - lastY);
+				break;
+			case 'Q':
+				out.push("q");
+				out.push(points[1] - lastX);
+				out.push(points[2] - lastY);
+				x = points[3];
+				y = points[4];
+				out.push(x - lastX);
+				out.push(y - lastY);
+				break;
+		}
+
+		lastX = x;
+		lastY = y;
+	}
+	return out.join(" ");
 }
 
 function getStartEndValues(direction, bounds){
