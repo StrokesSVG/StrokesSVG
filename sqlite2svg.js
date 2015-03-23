@@ -7,7 +7,7 @@ var fs = require('fs'),
 	WIDTH = 270,
 	HEIGHT = 270,
 
-	ouputDir = "compress",
+	ouputDir = "grad",
 	colorPlan = "#CCCCCC",
 	colorRadical = ["#000080","#0000ff"],
 	colorGrad = ["#000000", "#ff0000"],
@@ -17,7 +17,7 @@ var fs = require('fs'),
 	showPlan = true,
 	animate = false,
 	pauseOnCompletedTime = "1s",
-	compressPaths = true,
+	compressPaths = false,
 
 	ids = [];
 
@@ -80,7 +80,7 @@ db.each("SELECT code_point FROM strokes GROUP BY code_point", function(err, row)
 						begin += " + 0.5";
 					}
 
-					if(showPlan){
+					if(showPlan && animate){
 						plan.push('<path d="' + path + '" fill="'+colorPlan+'"/>');
 					}
 
