@@ -7,17 +7,18 @@ var fs = require('fs'),
 	WIDTH = 270,
 	HEIGHT = 270,
 
-	ouputDir = "grad",
+	ouputDir = "demo",
 	colorPlan = "#CCCCCC",
 	colorRadical = ["#000080","#0000ff"],
 	colorGrad = ["#000000", "#ff0000"],
 	// cross the page in 1 sec
 	speed = WIDTH,
-	mode = 'grad', // radical, grad, black,
+	mode = 'radical', // radical, grad, black,
 	showPlan = true,
-	animate = false,
+	animate = true,
 	pauseOnCompletedTime = "1s",
 	compressPaths = false,
+	demo = true,
 
 	ids = [];
 
@@ -32,6 +33,7 @@ db.each("SELECT code_point FROM strokes GROUP BY code_point", function(err, row)
 				defs = ['<defs>'],
 				plan = [],
 				strokes = [],
+				rects = [],
 				strokesSVG = [],
 				mainStrokes = 0;
 			db.each("SELECT ordinal,direction,is_radical,is_continuation,path FROM strokes WHERE code_point = " + code_point + " ORDER BY ordinal", function(err, stroke) {
@@ -87,14 +89,29 @@ db.each("SELECT code_point FROM strokes GROUP BY code_point", function(err, row)
 					strokesSVG.push('<path d="' + path + '" fill="'+ getColor(stroke) +'"'+ (animate ? ' clip-path="url(#clip-mask-' + i + ')"' : '') + ' />');
 
 					if(animate){
-						defs.push(
-							'<clipPath id="clip-mask-'+i+'">'
-							+ 	'<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'">'
-							+		((i == 1) ? '' : '<set attributeName="'+attr+'" to="'+start+'" begin="0; animate'+numStrokes+'.end + '+pauseOnCompletedTime+'" />')
-							+ 		'<animate attributeName="'+attr+'" from="'+start+'" to="'+end+'" dur="'+dur+'" begin="'+begin+'" id="animate'+i+'" fill="freeze"/>'
-							+	'</rect>'
-							+'</clipPath>');
+						if(demo) {
+							defs.push(
+								'<clipPath id="clip-mask-'+i+'">'
+								+ 	'<use xlink:href="#rect-'+i+'" />'
+								+'</clipPath>'
+							);
+							rects.push(
+								'<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" id="rect-'+i+'" fill="transparent" stroke="#000000">'
+								+ 	((i == 1) ? '' : '<set attributeName="'+attr+'" to="'+start+'" begin="0; animate'+numStrokes+'.end + '+pauseOnCompletedTime+'" />')
+								+ 	'<animate attributeName="'+attr+'" from="'+start+'" to="'+end+'" dur="'+dur+'" begin="'+begin+'" id="animate'+i+'" fill="freeze"/>'
+								+'</rect>'
+							);
 						}
+						else {
+							defs.push(
+								'<clipPath id="clip-mask-'+i+'">'
+								+ 	'<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'">'
+								+ 		((i == 1) ? '' : '<set attributeName="'+attr+'" to="'+start+'" begin="0; animate'+numStrokes+'.end + '+pauseOnCompletedTime+'" />')
+								+ 		'<animate attributeName="'+attr+'" from="'+start+'" to="'+end+'" dur="'+dur+'" begin="'+begin+'" id="animate'+i+'" fill="freeze"/>'
+								+ 	'</rect>'
+								+'</clipPath>');
+							}
+					}
 				});
 
 				if(animate){
@@ -106,6 +123,9 @@ db.each("SELECT code_point FROM strokes GROUP BY code_point", function(err, row)
 					out.push(plan.join(""));
 				}
 				out.push(strokesSVG.join(""));
+				if(demo){
+					out.push(rects.join(""));
+				}
 				out.push("</svg>");
 
 				writeFile(ouputDir + "/" + c + ".svg", out.join(""), code_point);
